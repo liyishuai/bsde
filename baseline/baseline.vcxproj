@@ -110,6 +110,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ThetaScheme.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="BSDE.c" />
+    <ClCompile Include="ThetaScheme.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
