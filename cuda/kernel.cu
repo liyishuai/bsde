@@ -1,7 +1,7 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "../cub/cub/cub.cuh"
+#include "helper_cuda.h"
 
 #include <Windows.h>
 
@@ -89,21 +89,17 @@ struct E
     float yw;
     float f;
     float fw;
-    
-    __host__ __device__ E(float yy = 0.f,
-        float zz = 0.f,
-        float yww = 0.f,
-        float ff = 0.f,
-        float fww = 0.f) :
-        y(yy),
-        z(zz),
-        yw(yww),
-        f(ff),
-        fw(fww) {}
 
-    __host__ __device__ E operator +(const E &e) const
+    __device__ E() : y(0), z(0), yw(0), f(0), fw(0) {}
+
+    __device__ E& operator +=(const E &e)
     {
-        return E{ y + e.y, z + e.z, yw + e.yw, f + e.f, fw + e.fw };
+        y += e.y;
+        z += e.z;
+        yw += e.yw;
+        f += e.f;
+        fw += e.fw;
+        return *this;
     }
 };
 
@@ -111,10 +107,12 @@ struct E
 
 #define function_f(y,z) (-r) * y - 1 / sigma * (mu - r + d) * z
 
-__global__ void calculate(int i, E *e, const float *X, const float *Y1, const float *Z1, const float *randomMatrix, int NE, int Ps, float dh)
+__global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const float *Y1, const float *Z1, float th1, float th2, const float *randomMatrix, int NE, int Ps, float dt, float dh)
 {
-    const int k = threadIdx.x + blockDim.x * blockIdx.x;
-    if (k < NE)
+    const int i = ii + blockIdx.x;
+    const int x = threadIdx.x;
+    __shared__ E e[THREADS_PER_BLOCK];
+    for (int k = x; k < NE; k += blockDim.x)
     {
         const float d_wt = randomMatrix[k];
         float Xk = X[i] + d_wt;
@@ -137,12 +135,48 @@ __global__ void calculate(int i, E *e, const float *X, const float *Y1, const fl
             Sy = Ih(Y1[a], Y1[a + 1], X[a], X[a + 1], Xk);
             Sz = Ih(Z1[a], Z1[a + 1], X[a], X[a + 1], Xk);
         }
+
         float Sf = function_f(Sy, Sz);
-        e[k].y = Sy;
-        e[k].z = Sz;
-        e[k].yw = Sy * d_wt;
-        e[k].f = Sf;
-        e[k].fw = Sf * d_wt;
+        e[x].y += Sy;
+        e[x].z += Sz;
+        e[x].yw += Sy * d_wt;
+        e[x].f += Sf;
+        e[x].fw += Sf * d_wt;
+    }
+    __syncthreads();
+    if (x < 512)
+    {
+        e[x] += e[x + 512];
+        __syncthreads();
+    }
+    if (x < 256)
+    {
+        e[x] += e[x + 256];
+        __syncthreads();
+    }
+    if (x < 128)
+    {
+        e[x] += e[x + 128];
+        __syncthreads();
+    }
+    if (x < 64)
+    {
+        e[x] += e[x + 64];
+        __syncthreads();
+    }
+    if (x < 32)
+    {
+        e[x] += e[x + 32];
+        e[x] += e[x + 16];
+        e[x] += e[x + 8];
+        e[x] += e[x + 4];
+        e[x] += e[x + 2];
+        e[x] += e[x + 1];
+    }
+    if (x == 0)
+    {
+        Z2[i] = (e[0].yw + dt * (1.f - th2) * e[0].fw - dt * (1.f - th2) * e[0].z) / (NE * dt * th2);
+        Y2[i] = ((e[0].y + dt * (1.f - th1) * e[0].f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * Z2[i]) / (1.f + dt * th1 * r);
     }
 }
 
@@ -151,9 +185,6 @@ float dh;
 float c;
 float *X;
 float *randomMatrix;
-E *e, *er, erh;
-void  *d_temp_storage = NULL;
-size_t temp_storage_bytes = 0;
 
 int NE;
 int N;
@@ -163,22 +194,8 @@ int Ps;
 void currentSolution(int j, float *Y2, float *Z2, float *Y1, float *Z1, float th1, float th2)
 {
     const int ii = Ps * (N - j);
-    for (int i = ii; i <= M - ii; ++i)
-    {
-        calculate<<<(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(i, e,  X, Y1, Z1, randomMatrix, NE, Ps, dh);
-        cudaError_t cudaStatus = cudaGetLastError();
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "calculate failed!");
-            goto Error;
-        }
-        cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, e, er, NE);
-        cudaMemcpy(&erh, er, sizeof(E), cudaMemcpyDeviceToHost);
-        const float newZ2i = (erh.yw + dt * (1.f - th2) * erh.fw - dt * (1.f - th2) * erh.z) / (NE * dt * th2);
-        const float newY2i = ((erh.y + dt * (1.f - th1) * erh.f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * newZ2i) / (1.f + dt * th1 * r);
-        cudaMemcpy(Z2 + i, &newZ2i, sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(Y2 + i, &newY2i, sizeof(float), cudaMemcpyHostToDevice);
-    }
-Error:
+    calculate << <M - ii - ii + 1, THREADS_PER_BLOCK >> > (ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh);
+    checkCudaErrors(cudaGetLastError());
 }
 
 int main(int argc, char *argv[])
@@ -201,80 +218,35 @@ int main(int argc, char *argv[])
     dh = dt;
     c = 5 * sqrtf(dt);
     printf("c=%f\n", c);
-    
+
     Ps = c / dh + 1;
     M = N * Ps * 2;
     NE = SIM_TIMES;
 
     int size = (M + 1) * sizeof(float);
 
-    cudaError_t cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
-    cudaStatus = cudaMalloc((void**)&X, size);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc X failed!");
-        goto Error;
-    }
-    makeGrid<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(X, M, dh);
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "makeGrid failed!");
-        goto Error;
-    }
+    checkCudaErrors(cudaSetDevice(0));
+    checkCudaErrors(cudaMalloc((void**)&X, size));
+
+    makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
+    checkCudaErrors(cudaGetLastError());
+
     float *Y1;
-    cudaStatus = cudaMalloc((void**)&Y1, size);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc Y1 failed!");
-        goto Error;
-    }
-    terminalCondition<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(M, X, Y1, S, T, K);
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "terminalCondition failed!");
-        goto Error;
-    }
+    checkCudaErrors(cudaMalloc((void**)&Y1, size));
+
+    terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K);
+    checkCudaErrors(cudaGetLastError());
+
     float *Y2;
-    cudaStatus = cudaMalloc((void**)&Y2, size);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc Y2 failed!");
-        goto Error;
-    }
+    checkCudaErrors(cudaMalloc((void**)&Y2, size));
+
     float *Z1;
-    cudaStatus = cudaMalloc((void**)&Z1, size);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc Z1 failed!");
-        goto Error;
-    }
+    checkCudaErrors(cudaMalloc((void**)&Z1, size));
+
     float *Z2;
-    cudaStatus = cudaMalloc((void**)&Z2, size);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc Z2 failed!");
-        goto Error;
-    }
-    cudaStatus = cudaMalloc((void**)&randomMatrix, NE * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc randomMatrix failed!");
-        goto Error;
-    }
-    cudaStatus = cudaMalloc((void**)&e, NE * sizeof(E));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc e failed!");
-        goto Error;
-    }
-    cudaStatus = cudaMalloc((void**)&er, sizeof(E));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc er failed!");
-        goto Error;
-    }
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, e, er, NE);
-    cudaStatus = cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc d_temp_storage failed!");
-        goto Error;
-    }
+    checkCudaErrors(cudaMalloc((void**)&Z2, size));
+
+    checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
 
     LARGE_INTEGER frequency;
     QueryPerformanceFrequency(&frequency);
@@ -285,12 +257,8 @@ int main(int argc, char *argv[])
     QueryPerformanceCounter(&start);
 
     int num = NE + 1;
-    moroInvCND<<<(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(randomMatrix, num, sqrtf(dt));
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "moroInvCND failed!");
-        goto Error;
-    }
+    moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, num, sqrtf(dt));
+    checkCudaErrors(cudaGetLastError());
 
     int j;
     for (j = N - 1; j >= 0; j -= 2)
@@ -322,23 +290,13 @@ int main(int argc, char *argv[])
 
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
-    }
-
+    checkCudaErrors(cudaDeviceReset());
+    
+    checkCudaErrors(cudaFree(X));
+    checkCudaErrors(cudaFree(Y1));
+    checkCudaErrors(cudaFree(Y2));
+    checkCudaErrors(cudaFree(Z1));
+    checkCudaErrors(cudaFree(Z2));
+    checkCudaErrors(cudaFree(randomMatrix));
     return 0;
-
-Error:
-    cudaFree(X);
-    cudaFree(Y1);
-    cudaFree(Y2);
-    cudaFree(Z1);
-    cudaFree(Z2);
-    cudaFree(randomMatrix);
-    cudaFree(e);
-    cudaFree(er);
-    cudaFree(d_temp_storage);
-    return 1;
 }

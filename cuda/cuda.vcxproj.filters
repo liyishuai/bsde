@@ -3,4 +3,8 @@
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="helper_string.h" />
+    <ClInclude Include="helper_cuda.h" />
+  </ItemGroup>
 </Project>
