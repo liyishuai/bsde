@@ -167,14 +167,19 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
     if (x < 32)
     {
         e[x] += e[x + 32];
+        __syncthreads();
         e[x] += e[x + 16];
+        __syncthreads();
         e[x] += e[x + 8];
+        __syncthreads();
         e[x] += e[x + 4];
+        __syncthreads();
         e[x] += e[x + 2];
-        e[x] += e[x + 1];
+        __syncthreads();
     }
     if (x == 0)
     {
+        e[0] += e[1];
         Z2[i] = (e[0].yw + dt * (1.f - th2) * e[0].fw - dt * (1.f - th2) * e[0].z) / (NE * dt * th2);
         Y2[i] = ((e[0].y + dt * (1.f - th1) * e[0].f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * Z2[i]) / (1.f + dt * th1 * r);
     }
@@ -287,16 +292,10 @@ int main(int argc, char *argv[])
     tm /= frequency.QuadPart;
     printf("FINISHED!!\nALL Time is %.6f s\n", tm);
     printf("\nThe value of Y0 is: %10.4f\n", solution);
-
+    
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
     checkCudaErrors(cudaDeviceReset());
     
-    checkCudaErrors(cudaFree(X));
-    checkCudaErrors(cudaFree(Y1));
-    checkCudaErrors(cudaFree(Y2));
-    checkCudaErrors(cudaFree(Z1));
-    checkCudaErrors(cudaFree(Z2));
-    checkCudaErrors(cudaFree(randomMatrix));
     return 0;
 }
