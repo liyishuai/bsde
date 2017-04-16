@@ -157,12 +157,24 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
     {
         e[x] += e[x + 32];
         __syncthreads();
+    }
+    if (x < 16)
+    {
         e[x] += e[x + 16];
         __syncthreads();
+    }
+    if (x < 8)
+    {
         e[x] += e[x + 8];
         __syncthreads();
+    }
+    if (x < 4)
+    {
         e[x] += e[x + 4];
         __syncthreads();
+    }
+    if (x < 2)
+    {
         e[x] += e[x + 2];
         __syncthreads();
     }
@@ -224,7 +236,7 @@ int main(int argc, char *argv[])
     float *randomMatrix;
     checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
 
-    float solution;
+    float solutionY, solutionZ;
     auto start(chrono::high_resolution_clock::now());
 
     int num = NE + 1;
@@ -247,13 +259,19 @@ int main(int argc, char *argv[])
             currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
     }
     if (j == -1)
-        cudaMemcpy(&solution, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+    {
+        cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&solutionZ, Z1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+    }
     else
-        cudaMemcpy(&solution, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+    {
+        cudaMemcpy(&solutionY, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+    }
 
     chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
     cerr << tm.count() << endl;
-    printf("\nThe value of Y0 is: %10.4f\n", solution);
+    cout << solutionY << '\t' << solutionZ << endl;
 
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
