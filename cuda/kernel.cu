@@ -10,7 +10,7 @@
 #include <chrono>
 using namespace std;
 
-#define THREADS_PER_BLOCK 1024
+#define THREADS_PER_BLOCK 128
 
 __global__ void makeGrid(float *X, int M, float dh)
 {
@@ -133,54 +133,55 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
         e[x].fw += Sf * d_wt;
     }
     __syncthreads();
-    if (x < 512)
+    if (THREADS_PER_BLOCK >= 1024 && x < 512)
     {
         e[x] += e[x + 512];
         __syncthreads();
     }
-    if (x < 256)
+    if (THREADS_PER_BLOCK >= 512 && x < 256)
     {
         e[x] += e[x + 256];
         __syncthreads();
     }
-    if (x < 128)
+    if (THREADS_PER_BLOCK >= 256 && x < 128)
     {
         e[x] += e[x + 128];
         __syncthreads();
     }
-    if (x < 64)
+    if (THREADS_PER_BLOCK >= 128 && x < 64)
     {
         e[x] += e[x + 64];
         __syncthreads();
     }
-    if (x < 32)
+    if (THREADS_PER_BLOCK >= 64 && x < 32)
     {
         e[x] += e[x + 32];
         __syncthreads();
     }
-    if (x < 16)
+    if (THREADS_PER_BLOCK >= 32 && x < 16)
     {
         e[x] += e[x + 16];
         __syncthreads();
     }
-    if (x < 8)
+    if (THREADS_PER_BLOCK >= 16 && x < 8)
     {
         e[x] += e[x + 8];
         __syncthreads();
     }
-    if (x < 4)
+    if (THREADS_PER_BLOCK >= 8 && x < 4)
     {
         e[x] += e[x + 4];
         __syncthreads();
     }
-    if (x < 2)
+    if (THREADS_PER_BLOCK >= 4 && x < 2)
     {
         e[x] += e[x + 2];
         __syncthreads();
     }
     if (x == 0)
     {
-        e[0] += e[1];
+        if (THREADS_PER_BLOCK >= 2)
+            e[0] += e[1];
         Z2[i] = (e[0].yw + dt * (1.f - th2) * e[0].fw - dt * (1.f - th2) * e[0].z) / (NE * dt * th2);
         Y2[i] = ((e[0].y + dt * (1.f - th1) * e[0].f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * Z2[i]) / (1.f + dt * th1 * r);
     }
