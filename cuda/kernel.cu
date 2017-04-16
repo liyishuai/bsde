@@ -200,80 +200,86 @@ int main(int argc, char *argv[])
     int SIM_TIMES;
     cin >> SIM_TIMES >> TIME_GRID;
     const int N(TIME_GRID);
-
-    bool call_option;
-    float S, K, T, sigma, r, R, mu, d;
-    cin >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >> d;
-    const float dt(T / N);
-    const float dh(dt);
-    const float c(5 * sqrtf(dt));
-    const int Ps(c / dh + 1);
-    const int M(N * Ps * 2);
     const int NE(SIM_TIMES);
-    const int size((M + 1) * sizeof(float));
-
-    float *X;
-    checkCudaErrors(cudaSetDevice(0));
-    checkCudaErrors(cudaMalloc((void**)&X, size));
-
-    makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
-    checkCudaErrors(cudaGetLastError());
-
-    float *Y1;
-    checkCudaErrors(cudaMalloc((void**)&Y1, size));
-
-    terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K, call_option, sigma, mu);
-    checkCudaErrors(cudaGetLastError());
-
-    float *Y2;
-    checkCudaErrors(cudaMalloc((void**)&Y2, size));
-
-    float *Z1;
-    checkCudaErrors(cudaMalloc((void**)&Z1, size));
-
-    float *Z2;
-    checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
     float *randomMatrix;
     checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
 
-    float solutionY, solutionZ;
-    auto start(chrono::high_resolution_clock::now());
-
-    int num = NE + 1;
-    moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, num, sqrtf(dt));
-    checkCudaErrors(cudaGetLastError());
-
-    int j;
-    for (j = N - 1; j >= 0; j -= 2)
+    bool call_option;
+    float S, K, T, sigma, r, R, mu, d;
+    while(cin >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >> d)
     {
-        float th1 = 0.5;
-        float th2 = 0.5;
-        if (j == N - 1)
-            th1 = th2 = 1;
+        const float dt(T / N);
+        const float dh(dt);
+        const float c(5 * sqrtf(dt));
+        const int Ps(c / dh + 1);
+        const int M(N * Ps * 2);
+        const int size((M + 1) * sizeof(float));
 
-        currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+        float *X;
+        checkCudaErrors(cudaSetDevice(0));
+        checkCudaErrors(cudaMalloc((void**)&X, size));
 
-        th1 = th2 = 0.5;
+        makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
+        checkCudaErrors(cudaGetLastError());
 
-        if (j > 0)
-            currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+        float *Y1;
+        checkCudaErrors(cudaMalloc((void**)&Y1, size));
+
+        terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K, call_option, sigma, mu);
+        checkCudaErrors(cudaGetLastError());
+
+        float *Y2;
+        checkCudaErrors(cudaMalloc((void**)&Y2, size));
+
+        float *Z1;
+        checkCudaErrors(cudaMalloc((void**)&Z1, size));
+
+        float *Z2;
+        checkCudaErrors(cudaMalloc((void**)&Z2, size));
+
+        float solutionY, solutionZ;
+        auto start(chrono::high_resolution_clock::now());
+
+        moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
+        checkCudaErrors(cudaGetLastError());
+
+        int j;
+        for (j = N - 1; j >= 0; j -= 2)
+        {
+            float th1 = 0.5;
+            float th2 = 0.5;
+            if (j == N - 1)
+                th1 = th2 = 1;
+
+            currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+
+            th1 = th2 = 0.5;
+
+            if (j > 0)
+                currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+        }
+        if (j == -1)
+        {
+            cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&solutionZ, Z1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+        }
+        else
+        {
+            cudaMemcpy(&solutionY, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+        }
+
+        chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
+        cerr << tm.count() << endl;
+        cout << solutionY << '\t' << solutionZ << endl;
+
+        checkCudaErrors(cudaFree(X));
+        checkCudaErrors(cudaFree(Y1));
+        checkCudaErrors(cudaFree(Z1));
+        checkCudaErrors(cudaFree(Y2));
+        checkCudaErrors(cudaFree(Z2));
     }
-    if (j == -1)
-    {
-        cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(&solutionZ, Z1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-    }
-    else
-    {
-        cudaMemcpy(&solutionY, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-    }
-
-    chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
-    cerr << tm.count() << endl;
-    cout << solutionY << '\t' << solutionZ << endl;
-
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
     checkCudaErrors(cudaDeviceReset());
