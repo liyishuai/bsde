@@ -20,10 +20,10 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BSDE.c">
+    <ClCompile Include="BSDE.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ThetaScheme.c">
+    <ClCompile Include="ThetaScheme.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
