@@ -3,11 +3,11 @@
 #include "device_launch_parameters.h"
 #include "helper_cuda.h"
 
-#include <Windows.h>
-
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cmath>
+#include <iostream>
+#include <cstdlib>
+#include <chrono>
+using namespace std;
 
 #define CALL_OPTION 1
 
@@ -253,13 +253,8 @@ int main(int argc, char *argv[])
 
     checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
 
-    LARGE_INTEGER frequency;
-    QueryPerformanceFrequency(&frequency);
-
-    LARGE_INTEGER start;
-    LARGE_INTEGER finish;
     float solution;
-    QueryPerformanceCounter(&start);
+    auto start(chrono::high_resolution_clock::now());
 
     int num = NE + 1;
     moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, num, sqrtf(dt));
@@ -287,15 +282,13 @@ int main(int argc, char *argv[])
     else
         cudaMemcpy(&solution, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
 
-    QueryPerformanceCounter(&finish);
-    float tm = finish.QuadPart - start.QuadPart;
-    tm /= frequency.QuadPart;
-    printf("FINISHED!!\nALL Time is %.6f s\n", tm);
+    chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
+    cerr << tm.count() << endl;
     printf("\nThe value of Y0 is: %10.4f\n", solution);
-    
+
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
     checkCudaErrors(cudaDeviceReset());
-    
+
     return 0;
 }
