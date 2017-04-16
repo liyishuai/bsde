@@ -244,4 +244,4 @@ ModelManifest.xml
 CMakeCache.txt
 CMakeFiles/
 Makefile
-cmake_install.cmake
+*.cmake

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 #include <chrono>
 using namespace std;
 
