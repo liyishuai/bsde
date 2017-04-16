@@ -6,13 +6,14 @@
 
 int main(int argc, char* argv[])
 {
+    bool call_option;
     float S, K, T, sigma, r, R, mu, d;
     int SIM_TIMES;
     int TIME_GRID;
     cin >> SIM_TIMES >> TIME_GRID;
     const int N = TIME_GRID;
 
-    while (cin >> S >> K >> T >> sigma >> r >> R >> mu >>d)
+    while (cin >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >>d)
     {
         float th1 = 0.0, th2 = 0.0;
 
@@ -33,7 +34,7 @@ int main(int argc, char* argv[])
 
         Make_grid(X, M, dh);
 
-        Terminal_condition(M, X, Y1, S, T, K, sigma, mu, r, d);
+        Terminal_condition(M, X, Y1, S, T, K, call_option, sigma, mu, r, d);
 
         float *Random_matrix;
         int num = NE + 1;
@@ -52,12 +53,12 @@ int main(int argc, char* argv[])
             else
                 th1 = th2 = 0.5;
 
-            current_solution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, c, M, r, sigma, mu, d, Random_matrix);
+            current_solution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, c, M, r, R, sigma, mu, d, Random_matrix);
 
             th1 = th2 = 0.5;
 
             if (j > 0)
-                current_solution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, c, M, r, sigma, mu, d, Random_matrix);
+                current_solution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, c, M, r, R, sigma, mu, d, Random_matrix);
             else
                 break;
         }

@@ -1,30 +1,23 @@
 #include "ThetaScheme.h"
 
-#define CALL_OPTION 1 
-#define A1 0.31938153
-#define A2 -0.356563782
-#define A3 1.781477937
-#define A4 -1.821255978
-#define A5 1.330274429
 #define RSQRT2PI 0.39894228040143267793994605993438
-
-const float a1 = 2.50662823884f;
-const float a2 = -18.61500062529f;
-const float a3 = 41.39119773534f;
-const float a4 = -25.44106049637f;
-const float b1 = -8.4735109309f;
-const float b2 = 23.08336743743f;
-const float b3 = -21.06224101826f;
-const float b4 = 3.13082909833f;
-const float c1 = 0.337475482272615f;
-const float c2 = 0.976169019091719f;
-const float c3 = 0.160797971491821f;
-const float c4 = 2.76438810333863E-02f;
-const float c5 = 3.8405729373609E-03f;
-const float c6 = 3.951896511919E-04f;
-const float c7 = 3.21767881768E-05f;
-const float c8 = 2.888167364E-07f;
-const float c9 = 3.960315187E-07f;
+#define a1 2.50662823884f
+#define a2 -18.61500062529f
+#define a3 41.39119773534f
+#define a4 -25.44106049637f
+#define b1 -8.4735109309f
+#define b2 23.08336743743f
+#define b3 -21.06224101826f
+#define b4 3.13082909833f
+#define c1 0.337475482272615f
+#define c2 0.976169019091719f
+#define c3 0.160797971491821f
+#define c4 2.76438810333863E-02f
+#define c5 3.8405729373609E-03f
+#define c6 3.951896511919E-04f
+#define c7 3.21767881768E-05f
+#define c8 2.888167364E-07f
+#define c9 3.960315187E-07f
 
 float MoroInvCND(const float &P) {
     if (P <= 0 || P >= 1.0f)
@@ -54,9 +47,9 @@ float Ih(const float &y1, const float &y2, const float &x1, const float &x2, con
     return (y2 * (x - x1) + y1 * (x2 - x)) / (x2 - x1);
 }
 
-float function_f(const float &y, const float &z, const float &mu, const float &sigma, const float &r, const float &d)
+float function_f(const float &y, const float &z, const float &mu, const float &sigma, const float &r, const float &R, const float &d)
 {
-    return (-r) * y - 1 / sigma * (mu - r + d) * z;
+    return -(r * y + (mu - r + d) * z / sigma + (R - r) * min(y - z, 0.f));
 }
 
 void Make_grid(float *X, const int &M, const float &dh)
@@ -67,20 +60,20 @@ void Make_grid(float *X, const int &M, const float &dh)
 
 /*---Terminal_condition--*/
 void Terminal_condition(const int &M, float * X, float * YT, const float &S0, const float &T, const float &K,
-        const float &sigma, const float &mu, const float &r, const float &d)
+        const bool &call_option, const float &sigma, const float &mu, const float &r, const float &d)
 {
     for (int i(0); i <= M; ++i)
     {
         const float St(S0 * expf(sigma * X[i] + (mu - 0.5 * sigma * sigma) * T));
 
-        if (CALL_OPTION == 1)
+        if (call_option)
             YT[i] = max(St - K, 0.f);
         else
             YT[i] = max(K - St, 0.f);
     }
 }
 
-void current_solution(const int &j, float *Y2, float *Z2, const float *Y1, const float *Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const float &c, const int &M, const float &r, const float &sigma, const float &mu, const float &d, const float *Random_matrix)
+void current_solution(const int &j, float *Y2, float *Z2, const float *Y1, const float *Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const float &c, const int &M, const float &r, const float &R, const float &sigma, const float &mu, const float &d, const float *Random_matrix)
 {
     const int Ps(M / (2 * N));
     const int ii(Ps * (N - j));
@@ -114,7 +107,7 @@ void current_solution(const int &j, float *Y2, float *Z2, const float *Y1, const
             }
 
             float Syw(Sy * d_wt);
-            float Sf(function_f(Sy, Sz, mu, sigma, r, d));
+            float Sf(function_f(Sy, Sz, mu, sigma, R, r, d));
             float Sfw(Sf * d_wt);
 
             Ey += Sy;

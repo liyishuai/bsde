@@ -10,62 +10,50 @@
 #include <chrono>
 using namespace std;
 
-#define CALL_OPTION 1
-
-#define EXPIRATION_TIME .33f
-#define STRIKE_PRICE    100.f
-#define INIT_PRICE      100.f
-
-#define sigma   .2f
-#define r       .03f
-#define R       .03f
-#define mu      .05f
-#define d       .04f
-
 #define THREADS_PER_BLOCK 1024
 
 __global__ void makeGrid(float *X, int M, float dh)
 {
-    const int i = threadIdx.x + blockDim.x * blockIdx.x;
+    const int i(threadIdx.x + blockDim.x * blockIdx.x);
     if (i <= M)
         X[i] = (i - M / 2) * dh;
 }
 
-__global__ void terminalCondition(int M, const float *X, float *YT, float S0, float T, float K)
+__global__ void terminalCondition(int M, const float *X, float *YT, float S0, float T, float K, bool call_option, float sigma, float mu)
 {
-    const int i = threadIdx.x + blockDim.x * blockIdx.x;
+    const int i(threadIdx.x + blockDim.x * blockIdx.x);
     if (i <= M)
     {
-        const float St = S0 * expf(sigma * X[i] + (mu - .5f * sigma * sigma) * T);
-        YT[i] = fmaxf(CALL_OPTION == 1 ? St - K : K - St, 0.f);
+        const float St(S0 * expf(sigma * X[i] + (mu - .5f * sigma * sigma) * T));
+        YT[i] = fmaxf(call_option ? St - K : K - St, 0.f);
     }
 }
 
+#define a1 2.50662823884f
+#define a2 -18.61500062529f
+#define a3 41.39119773534f
+#define a4 -25.44106049637f
+#define b1 -8.4735109309f
+#define b2 23.08336743743f
+#define b3 -21.06224101826f
+#define b4 3.13082909833f
+#define c1 0.337475482272615f
+#define c2 0.976169019091719f
+#define c3 0.160797971491821f
+#define c4 2.76438810333863E-02f
+#define c5 3.8405729373609E-03f
+#define c6 3.951896511919E-04f
+#define c7 3.21767881768E-05f
+#define c8 2.888167364E-07f
+#define c9 3.960315187E-07f
+
 __global__ void moroInvCND(float *randomMatrix, int num, float sqrtdt)
 {
-    const float a1 = 2.50662823884f;
-    const float a2 = -18.61500062529f;
-    const float a3 = 41.39119773534f;
-    const float a4 = -25.44106049637f;
-    const float b1 = -8.4735109309f;
-    const float b2 = 23.08336743743f;
-    const float b3 = -21.06224101826f;
-    const float b4 = 3.13082909833f;
-    const float c1 = 0.337475482272615f;
-    const float c2 = 0.976169019091719f;
-    const float c3 = 0.160797971491821f;
-    const float c4 = 2.76438810333863E-02f;
-    const float c5 = 3.8405729373609E-03f;
-    const float c6 = 3.951896511919E-04f;
-    const float c7 = 3.21767881768E-05f;
-    const float c8 = 2.888167364E-07f;
-    const float c9 = 3.960315187E-07f;
-
-    const int i = threadIdx.x + blockDim.x * blockIdx.x;
+    const int i(threadIdx.x + blockDim.x * blockIdx.x);
     if (i + 1 < num)
     {
-        const float P = (i + 1) / (float)num;
-        const float y = P - .5f;
+        const float P((i + 1) / (float)num);
+        const float y(P - .5f);
         float z;
         if (fabsf(y) < .42f)
         {
@@ -106,24 +94,24 @@ struct E
 
 #define Ih(y1,y2,x1,x2,x) (y2 * (x - x1) + y1 * (x2 - x)) / (x2 - x1)
 
-#define function_f(y,z) (-r) * y - 1 / sigma * (mu - r + d) * z
+#define function_f(y,z,mu,sigma,r,R,d) -(r * y + (mu - r + d) * z / sigma + (R - r) * fminf(y - z, 0.f))
 
-__global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const float *Y1, const float *Z1, float th1, float th2, const float *randomMatrix, int NE, int Ps, float dt, float dh)
+__global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const float *Y1, const float *Z1, float th1, float th2, const float *randomMatrix, int NE, int Ps, float dt, float dh, float r, float R, float sigma, float mu, float d)
 {
-    const int i = ii + blockIdx.x;
-    const int x = threadIdx.x;
+    const int i(ii + blockIdx.x);
+    const int x(threadIdx.x);
     __shared__ E e[THREADS_PER_BLOCK];
-    for (int k = x; k < NE; k += blockDim.x)
+    for (int k(x); k < NE; k += blockDim.x)
     {
-        const float d_wt = randomMatrix[k];
-        float Xk = X[i] + d_wt;
+        const float d_wt(randomMatrix[k]);
+        float Xk(X[i] + d_wt);
 
         if (Xk < X[i - Ps])
             Xk = X[i - Ps];
         else if (Xk > X[i + Ps])
             Xk = X[i + Ps];
 
-        const int a = (Xk - X[0]) / dh;
+        const int a((Xk - X[0]) / dh);
         float Sy;
         float Sz;
         if (a == i + Ps)
@@ -137,7 +125,7 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
             Sz = Ih(Z1[a], Z1[a + 1], X[a], X[a + 1], Xk);
         }
 
-        float Sf = function_f(Sy, Sz);
+        float Sf(function_f(Sy, Sz, mu, sigma, r, R, d));
         e[x].y += Sy;
         e[x].z += Sz;
         e[x].yw += Sy * d_wt;
@@ -186,51 +174,32 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
     }
 }
 
-float dt;
-float dh;
-float c;
-float *X;
-float *randomMatrix;
-
-int NE;
-int N;
-int M;
-int Ps;
-
-void currentSolution(int j, float *Y2, float *Z2, float *Y1, float *Z1, float th1, float th2)
+void currentSolution(const int &j, float *Y2, float *Z2, const float *Y1, const float *Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const int &M, const int &Ps, const float &r, const float &R, const float &sigma, const float &mu, const float &d, const float *randomMatrix)
 {
-    const int ii = Ps * (N - j);
-    calculate << <M - ii - ii + 1, THREADS_PER_BLOCK >> > (ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh);
+    const int ii(Ps * (N - j));
+    calculate << <M - ii - ii + 1, THREADS_PER_BLOCK >> > (ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh, r, R, sigma, mu, d);
     checkCudaErrors(cudaGetLastError());
 }
 
 int main(int argc, char *argv[])
 {
-    int TIME_GRID = 64;
-    if (argc >= 2)
-        TIME_GRID = atoi(argv[1]);
+    int TIME_GRID;
+    int SIM_TIMES;
+    cin >> SIM_TIMES >> TIME_GRID;
+    const int N(TIME_GRID);
 
-    int SIM_TIMES = 40000;
-    if (argc >= 3)
-        SIM_TIMES = atoi(argv[2]);
+    bool call_option;
+    float S, K, T, sigma, r, R, mu, d;
+    cin >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >> d;
+    const float dt(T / N);
+    const float dh(dt);
+    const float c(5 * sqrtf(dt));
+    const int Ps(c / dh + 1);
+    const int M(N * Ps * 2);
+    const int NE(SIM_TIMES);
+    const int size((M + 1) * sizeof(float));
 
-    printf("TIME_GRID = %d\n", TIME_GRID);
-    float S = INIT_PRICE;
-    float K = STRIKE_PRICE;
-    float T = EXPIRATION_TIME;
-
-    N = TIME_GRID;
-    dt = T / N;
-    dh = dt;
-    c = 5 * sqrtf(dt);
-    printf("c=%f\n", c);
-
-    Ps = c / dh + 1;
-    M = N * Ps * 2;
-    NE = SIM_TIMES;
-
-    int size = (M + 1) * sizeof(float);
-
+    float *X;
     checkCudaErrors(cudaSetDevice(0));
     checkCudaErrors(cudaMalloc((void**)&X, size));
 
@@ -240,7 +209,7 @@ int main(int argc, char *argv[])
     float *Y1;
     checkCudaErrors(cudaMalloc((void**)&Y1, size));
 
-    terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K);
+    terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K, call_option, sigma, mu);
     checkCudaErrors(cudaGetLastError());
 
     float *Y2;
@@ -252,6 +221,7 @@ int main(int argc, char *argv[])
     float *Z2;
     checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
+    float *randomMatrix;
     checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
 
     float solution;
@@ -269,14 +239,12 @@ int main(int argc, char *argv[])
         if (j == N - 1)
             th1 = th2 = 1;
 
-        currentSolution(j, Y2, Z2, Y1, Z1, th1, th2);
+        currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
 
         th1 = th2 = 0.5;
 
         if (j > 0)
-            currentSolution(j - 1, Y1, Z1, Y2, Z2, th1, th2);
-
-        printf("step.%d finish\n", j);
+            currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
     }
     if (j == -1)
         cudaMemcpy(&solution, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
