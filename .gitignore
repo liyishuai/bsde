@@ -244,4 +244,5 @@ ModelManifest.xml
 CMakeCache.txt
 CMakeFiles/
 Makefile
+Testing/
 *.cmake
