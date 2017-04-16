@@ -1,20 +1,22 @@
-#include <math.h>
+#include <algorithm>
+#include <cmath>
 #include <omp.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <Windows.h>
+#include <iostream>
+#include <cstring>
+#include <ctime>
+#include <chrono>
+using namespace std;
 
-float MoroInvCND(float P);
+float MoroInvCND(const float &P);
 
-float Ih(float y1, float y2, float x1, float x2, float x);
+float Ih(const float &y1, const float &y2, const float &x1, const float &x2, const float &x);
 
-float function_f(float y, float z, float mu, float sigma, float r, float d);
+float function_f(const float &y, const float &z, const float &mu, const float &sigma, const float &r, const float &d);
 
-void Make_grid(float *X, int M, float dh);
+void Make_grid(float *X, const int &M, const float &dh);
 
-void Terminal_condition(int M, float * X, float * YT, float S0, float T, float K, float sigma, float mu, float r, float d);
+void Terminal_condition(const int &M, float * X, float * YT, const float &S0, const float &T, const float &K, const float &sigma, const float &mu, const float &r, const float &d);
 
-void current_solution(int j, float *Y2, float *Z2, float*Y1, float*Z1, float *X, float th1, float th2, float dt, float dh, int NE, int N, float c, int M, float r, float sigma, float mu, float d, float *Random_matrix);
+void current_solution(const int &j, float *Y2, float *Z2, const float*Y1, const float*Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const float &c, const int &M, const float &r, const float &sigma, const float &mu, const float &d, const float *Random_matrix);
 
-void print_solution(float y, float z);
+void print_solution(const float &y, const float &z);

@@ -126,30 +126,30 @@ AutoTest.Net/
 # DocProject is a documentation generator add-in
 DocProject/buildhelp/
 DocProject/Help/*.HxT
-DocProject/Help/*.HxC
-DocProject/Help/*.hhc
-DocProject/Help/*.hhk
-DocProject/Help/*.hhp
-DocProject/Help/Html2
-DocProject/Help/html
+                 DocProject/Help/*.HxC
+                 DocProject/Help/*.hhc
+                 DocProject/Help/*.hhk
+                 DocProject/Help/*.hhp
+                 DocProject/Help/Html2
+                 DocProject/Help/html
 
 # Click-Once directory
 publish/
 
 # Publish Web Output
-*.[Pp]ublish.xml
-*.azurePubxml
+                *.[Pp]ublish.xml
+                *.azurePubxml
 
 # TODO: Un-comment the next line if you do not want to checkin
 # your web deploy settings because they may include unencrypted
 # passwords
 #*.pubxml
-*.publishproj
+                *.publishproj
 
 # NuGet Packages
-*.nupkg
+                *.nupkg
 # The packages folder can be ignored because of Package Restore
-**/packages/*
+                **/packages/*
 # except build/, which is used as an MSBuild target.
 !**/packages/build/
 # Uncomment if necessary however generally it will be regenerated when needed
@@ -225,11 +225,11 @@ FakesAssemblies/
 
 # Visual Studio LightSwitch build output
 **/*.HTMLClient/GeneratedArtifacts
-**/*.DesktopClient/GeneratedArtifacts
-**/*.DesktopClient/ModelManifest.xml
-**/*.Server/GeneratedArtifacts
-**/*.Server/ModelManifest.xml
-_Pvt_Extensions
+   **/*.DesktopClient/GeneratedArtifacts
+      **/*.DesktopClient/ModelManifest.xml
+         **/*.Server/GeneratedArtifacts
+            **/*.Server/ModelManifest.xml
+                _Pvt_Extensions
 
 # LightSwitch generated files
 GeneratedArtifacts/
@@ -240,3 +240,8 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
