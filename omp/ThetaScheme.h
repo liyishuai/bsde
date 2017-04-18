@@ -4,6 +4,7 @@
 #include <cstring>
 #include <ctime>
 #include <chrono>
+#include <string>
 using namespace std;
 
 float MoroInvCND(const float &P);
@@ -18,4 +19,4 @@ void Terminal_condition(const int &M, float * X, float * YT, const float &S0, co
 
 void current_solution(const int &j, float *Y2, float *Z2, const float*Y1, const float*Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const float &c, const int &M, const float &r, const float &R, const float &sigma, const float &mu, const float &d, const float *Random_matrix);
 
-void print_solution(const float &y, const float &z);
+void print_solution(const double &tm, const string &name, const float &y, const float &z);

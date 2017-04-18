@@ -6,6 +6,7 @@
 
 int main(int argc, char* argv[])
 {
+    string name;
     bool call_option;
     float S, K, T, sigma, r, R, mu, d;
     int SIM_TIMES;
@@ -13,7 +14,7 @@ int main(int argc, char* argv[])
     cin >> SIM_TIMES >> TIME_GRID;
     const int N = TIME_GRID;
 
-    while (cin >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >>d)
+    while (cin >> name >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >>d)
     {
         float th1 = 0.0, th2 = 0.0;
 
@@ -64,12 +65,11 @@ int main(int argc, char* argv[])
         }
 
         chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
-        cerr << tm.count() << endl;
 
         if (j == -1)
-            print_solution(Y1[M / 2], Z1[M / 2]);
+            print_solution(tm.count(), name, Y1[M / 2], Z1[M / 2]);
         else
-            print_solution(Y2[M / 2], Z2[M / 2]);
+            print_solution(tm.count(), name, Y2[M / 2], Z2[M / 2]);
 
         free(X);
         free(Random_matrix);

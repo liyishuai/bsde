@@ -2,6 +2,8 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "helper_cuda.h"
+#include "helper_timer.h"
+#include "multithreading.h"
 
 #include <cmath>
 #include <iostream>
@@ -9,6 +11,7 @@
 #include <cstring>
 #include <chrono>
 #include <string>
+#include <vector>
 using namespace std;
 
 #define THREADS_PER_BLOCK 128
@@ -195,23 +198,49 @@ void currentSolution(const int &j, float *Y2, float *Z2, const float *Y1, const 
     checkCudaErrors(cudaGetLastError());
 }
 
-int main(int argc, char *argv[])
+struct config
 {
-    int TIME_GRID;
-    int SIM_TIMES;
-    cin >> SIM_TIMES >> TIME_GRID;
-    const int N(TIME_GRID);
-    const int NE(SIM_TIMES);
-
-    float *randomMatrix;
-    checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
-
     string name;
     bool call_option;
-    float S, K, T, sigma, r, R, mu, d;
-    while(cin >> name >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >> d)
+    float S;
+    float K;
+    float T;
+    float sigma;
+    float r;
+    float R;
+    float mu;
+    float d;
+};
+
+istream& operator >> (istream &in, config &c)
+{
+    return in >> c.name >> c.call_option >> c.S >> c.K >> c.T >> c.sigma >> c.r >> c.R >> c.mu >> c.d;
+}
+
+struct configs : vector<config>
+{
+    int device;
+
+    void set_device(const int &dev)
     {
-        const float dt(T / N);
+        device = dev;
+    }
+};
+
+int TIME_GRID;
+int SIM_TIMES;
+int N, NE;
+float *randomMatrix;
+
+CUT_THREADPROC solverThread(configs *cfgs)
+{
+    checkCudaErrors(cudaSetDevice(cfgs->device));
+    StopWatchInterface *timer;
+    sdkCreateTimer(&timer);
+    sdkStartTimer(&timer);
+    for (const config &cfg : *cfgs)
+    {
+        const float dt(cfg.T / N);
         const float dh(dt);
         const float c(5 * sqrtf(dt));
         const int Ps(c / dh + 1);
@@ -228,7 +257,7 @@ int main(int argc, char *argv[])
         float *Y1;
         checkCudaErrors(cudaMalloc((void**)&Y1, size));
 
-        terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K, call_option, sigma, mu);
+        terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, cfg.S, cfg.T, cfg.K, cfg.call_option, cfg.sigma, cfg.mu);
         checkCudaErrors(cudaGetLastError());
 
         float *Y2;
@@ -254,12 +283,12 @@ int main(int argc, char *argv[])
             if (j == N - 1)
                 th1 = th2 = 1;
 
-            currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+            currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
 
             th1 = th2 = 0.5;
 
             if (j > 0)
-                currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
+                currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
         }
         if (j == -1)
         {
@@ -272,8 +301,8 @@ int main(int argc, char *argv[])
             cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
         }
 
-        chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
-        cout << tm.count() << '\t' << name << '\t' << solutionY << '\t' << solutionZ << endl;
+        float tm(sdkGetTimerValue(&timer) * 1e-3);
+        cout << tm << '\t' << cfg.name << '\t' << solutionY << '\t' << solutionZ << endl;
 
         checkCudaErrors(cudaFree(X));
         checkCudaErrors(cudaFree(Y1));
@@ -281,9 +310,36 @@ int main(int argc, char *argv[])
         checkCudaErrors(cudaFree(Y2));
         checkCudaErrors(cudaFree(Z2));
     }
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
+    sdkDeleteTimer(&timer);
     checkCudaErrors(cudaDeviceReset());
+}
+
+int main(int argc, char *argv[])
+{
+    cin >> SIM_TIMES >> TIME_GRID;
+    N = TIME_GRID;
+    NE = SIM_TIMES;
+
+    checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
+
+    int GPU_N;
+    checkCudaErrors(cudaGetDeviceCount(&GPU_N));
+
+    configs *cfgs = new configs[GPU_N];
+    config cfg;
+    for (int i = 0; cin >> cfg; i %= GPU_N)
+        cfgs[i++].push_back(cfg);
+
+    CUTThread *threadID = new CUTThread[GPU_N];
+    for (int i = 0; i < GPU_N; ++i)
+    {
+        cfgs[i].set_device(i);
+        threadID[i] = cutStartThread((CUT_THREADROUTINE)solverThread, cfgs + i);
+    }
+    cutWaitForThreads(threadID, GPU_N);
+
+    delete[] threadID;
+    delete[] cfgs;
 
     return 0;
 }
