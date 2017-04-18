@@ -121,7 +121,7 @@ void current_solution(const int &j, float *Y2, float *Z2, const float *Y1, const
     }
 }
 
-void print_solution(const double &tm, const string &name, const float &y, const float &z)
+void print_solution(const float &tm, const string &name, const float &y, const float &z)
 {
     cout << tm << '\t' << name << '\t' << y << '\t' << z << endl;
 }

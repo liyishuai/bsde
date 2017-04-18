@@ -48,6 +48,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="exception.h" />
+    <ClInclude Include="helper_timer.h" />
     <ClInclude Include="ThetaScheme.h" />
   </ItemGroup>
   <ItemGroup>

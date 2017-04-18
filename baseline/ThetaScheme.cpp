@@ -64,7 +64,7 @@ void Terminal_condition(const int &M, float * X, float * YT, const float &S0, co
 {
     for (int i(0); i <= M; ++i)
     {
-        const float St(S0 * expf(sigma * X[i] + (mu - 0.5 * sigma * sigma) * T));
+        const float St(S0 * expf(sigma * X[i] + (mu - .5f * sigma * sigma) * T));
 
         if (call_option)
             YT[i] = max(St - K, 0.f);
@@ -120,7 +120,7 @@ void current_solution(const int &j, float *Y2, float *Z2, const float *Y1, const
     }
 }
 
-void print_solution(const double &tm, const string &name, const float &y, const float &z)
+void print_solution(const float &tm, const string &name, const float &y, const float &z)
 {
     cout << tm << '\t' << name << '\t' << y << '\t' << z << endl;
 }

@@ -2,6 +2,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "helper_cuda.h"
+#include "helper_timer.h"
 
 #include <cmath>
 #include <iostream>
@@ -209,6 +210,9 @@ int main(int argc, char *argv[])
     string name;
     bool call_option;
     float S, K, T, sigma, r, R, mu, d;
+    StopWatchInterface *timer;
+    sdkCreateTimer(&timer);
+    sdkStartTimer(&timer);
     while(cin >> name >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >> d)
     {
         const float dt(T / N);
@@ -240,9 +244,6 @@ int main(int argc, char *argv[])
         float *Z2;
         checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
-        float solutionY, solutionZ;
-        auto start(chrono::high_resolution_clock::now());
-
         moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
         checkCudaErrors(cudaGetLastError());
 
@@ -261,6 +262,7 @@ int main(int argc, char *argv[])
             if (j > 0)
                 currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
         }
+        float solutionY, solutionZ;
         if (j == -1)
         {
             cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
@@ -272,8 +274,8 @@ int main(int argc, char *argv[])
             cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
         }
 
-        chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
-        cout << tm.count() << '\t' << name << '\t' << solutionY << '\t' << solutionZ << endl;
+        float tm(sdkGetTimerValue(&timer) * 1e-3f);
+        cout << tm << '\t' << name << '\t' << solutionY << '\t' << solutionZ << endl;
 
         checkCudaErrors(cudaFree(X));
         checkCudaErrors(cudaFree(Y1));

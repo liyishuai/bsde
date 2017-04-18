@@ -1,4 +1,5 @@
 #include "ThetaScheme.h"
+#include "helper_timer.h"
 
 #define EXPIRATION_TIME 0.33
 #define STRIKE_PRICE    100
@@ -14,6 +15,9 @@ int main(int argc, char* argv[])
     cin >> SIM_TIMES >> TIME_GRID;
     const int N = TIME_GRID;
 
+    StopWatchInterface *timer;
+    sdkCreateTimer(&timer);
+    sdkStartTimer(&timer);
     while (cin >> name >> call_option >> S >> K >> T >> sigma >> r >> R >> mu >>d)
     {
         float th1 = 0.0, th2 = 0.0;
@@ -21,7 +25,7 @@ int main(int argc, char* argv[])
         const float dt = T / N;
         const float dh = dt;
 
-        const float c = 5.0 * sqrtf(dt);
+        const float c = 5.f * sqrtf(dt);
         const float Ps = c / dh + 1;
         const int M = N * Ps * 2;
         const int NE = SIM_TIMES;
@@ -40,7 +44,6 @@ int main(int argc, char* argv[])
         float *Random_matrix;
         int num = NE + 1;
         Random_matrix = (float *)malloc(sizeof(float)*(num));
-        auto start(chrono::high_resolution_clock::now());
         for (int k = 1; k <= num; k++)
             Random_matrix[k] = MoroInvCND((float)k / (NE + 1))*sqrt(dt);
 
@@ -64,12 +67,12 @@ int main(int argc, char* argv[])
                 break;
         }
 
-        chrono::duration<double> tm(chrono::high_resolution_clock::now() - start);
+        float tm(sdkGetTimerValue(&timer) * 1e-3f);
 
         if (j == -1)
-            print_solution(tm.count(), name, Y1[M / 2], Z1[M / 2]);
+            print_solution(tm, name, Y1[M / 2], Z1[M / 2]);
         else
-            print_solution(tm.count(), name, Y2[M / 2], Z2[M / 2]);
+            print_solution(tm, name, Y2[M / 2], Z2[M / 2]);
 
         free(X);
         free(Random_matrix);

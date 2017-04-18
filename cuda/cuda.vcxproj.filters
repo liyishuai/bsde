@@ -6,5 +6,7 @@
   <ItemGroup>
     <ClInclude Include="helper_string.h" />
     <ClInclude Include="helper_cuda.h" />
+    <ClInclude Include="exception.h" />
+    <ClInclude Include="helper_timer.h" />
   </ItemGroup>
 </Project>
