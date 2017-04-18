@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bin/multigpu < test/input.tsv > test/multigpu.tsv
+bin/multigpu < test/input.tsv | tee test/multigpu.tsv

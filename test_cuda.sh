@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bin/cuda < test/input.tsv > test/cuda.tsv
+bin/cuda < test/input.tsv | tee test/cuda.tsv
