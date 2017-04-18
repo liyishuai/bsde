@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bin/baseline < input.txt
+bin/baseline < test/input.tsv > test/baseline.tsv

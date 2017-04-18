@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bin/cuda < input.txt
+bin/cuda < test/input.tsv > test/cuda.tsv

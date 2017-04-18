@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bin/omp < input.txt
+bin/omp < test/input.tsv > test/omp.tsv
