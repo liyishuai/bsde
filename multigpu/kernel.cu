@@ -8,7 +8,6 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
-#include <chrono>
 #include <omp.h>
 #include <string>
 #include <vector>
@@ -227,9 +226,6 @@ int main(int argc, char *argv[])
     const int N(TIME_GRID);
     const int NE(SIM_TIMES);
 
-    float *randomMatrix;
-    checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
-
     int GPU_N;
     checkCudaErrors(cudaGetDeviceCount(&GPU_N));
 
@@ -274,8 +270,8 @@ int main(int argc, char *argv[])
             float *Z2;
             checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
-            float solutionY, solutionZ;
-            auto start(chrono::high_resolution_clock::now());
+            float *randomMatrix;
+            checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
 
             moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
             checkCudaErrors(cudaGetLastError());
@@ -295,6 +291,9 @@ int main(int argc, char *argv[])
                 if (j > 0)
                     currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
             }
+
+            float solutionY;
+            float solutionZ;
             if (j == -1)
             {
                 cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
