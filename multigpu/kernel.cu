@@ -235,85 +235,89 @@ int main(int argc, char *argv[])
 #pragma omp parallel num_threads(GPU_N)
     {
         checkCudaErrors(cudaSetDevice(omp_get_thread_num()));
-        bool work(false);
-        config cfg;
-#pragma omp critical
-        if (cin >> cfg)
-            work = true;
-        if (work)
+        bool work;
+        do
         {
-            const float dt(cfg.T / N);
-            const float dh(dt);
-            const float c(5 * sqrtf(dt));
-            const int Ps(c / dh + 1);
-            const int M(N * Ps * 2);
-            const int size((M + 1) * sizeof(float));
-
-            float *X;
-            checkCudaErrors(cudaMalloc((void**)&X, size));
-
-            makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
-            checkCudaErrors(cudaGetLastError());
-
-            float *Y1;
-            checkCudaErrors(cudaMalloc((void**)&Y1, size));
-
-            terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, cfg.S, cfg.T, cfg.K, cfg.call_option, cfg.sigma, cfg.mu);
-            checkCudaErrors(cudaGetLastError());
-
-            float *Y2;
-            checkCudaErrors(cudaMalloc((void**)&Y2, size));
-
-            float *Z1;
-            checkCudaErrors(cudaMalloc((void**)&Z1, size));
-
-            float *Z2;
-            checkCudaErrors(cudaMalloc((void**)&Z2, size));
-
-            float *randomMatrix;
-            checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
-
-            moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
-            checkCudaErrors(cudaGetLastError());
-
-            int j;
-            for (j = N - 1; j >= 0; j -= 2)
+            work = false;
+            config cfg;
+#pragma omp critical
+            if (cin >> cfg)
+                work = true;
+            if (work)
             {
-                float th1 = 0.5;
-                float th2 = 0.5;
-                if (j == N - 1)
-                    th1 = th2 = 1;
+                const float dt(cfg.T / N);
+                const float dh(dt);
+                const float c(5 * sqrtf(dt));
+                const int Ps(c / dh + 1);
+                const int M(N * Ps * 2);
+                const int size((M + 1) * sizeof(float));
 
-                currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
+                float *X;
+                checkCudaErrors(cudaMalloc((void**)&X, size));
 
-                th1 = th2 = 0.5;
+                makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
+                checkCudaErrors(cudaGetLastError());
 
-                if (j > 0)
-                    currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
+                float *Y1;
+                checkCudaErrors(cudaMalloc((void**)&Y1, size));
+
+                terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, cfg.S, cfg.T, cfg.K, cfg.call_option, cfg.sigma, cfg.mu);
+                checkCudaErrors(cudaGetLastError());
+
+                float *Y2;
+                checkCudaErrors(cudaMalloc((void**)&Y2, size));
+
+                float *Z1;
+                checkCudaErrors(cudaMalloc((void**)&Z1, size));
+
+                float *Z2;
+                checkCudaErrors(cudaMalloc((void**)&Z2, size));
+
+                float *randomMatrix;
+                checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
+
+                moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
+                checkCudaErrors(cudaGetLastError());
+
+                int j;
+                for (j = N - 1; j >= 0; j -= 2)
+                {
+                    float th1 = 0.5;
+                    float th2 = 0.5;
+                    if (j == N - 1)
+                        th1 = th2 = 1;
+
+                    currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
+
+                    th1 = th2 = 0.5;
+
+                    if (j > 0)
+                        currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
+                }
+
+                float solutionY;
+                float solutionZ;
+                if (j == -1)
+                {
+                    cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(&solutionZ, Z1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+                }
+                else
+                {
+                    cudaMemcpy(&solutionY, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
+                }
+
+                float tm(sdkGetTimerValue(&timer) * 1e-3);
+                cout << tm << '\t' << cfg.name << '\t' << solutionY << '\t' << solutionZ << endl;
+
+                checkCudaErrors(cudaFree(X));
+                checkCudaErrors(cudaFree(Y1));
+                checkCudaErrors(cudaFree(Z1));
+                checkCudaErrors(cudaFree(Y2));
+                checkCudaErrors(cudaFree(Z2));
             }
-
-            float solutionY;
-            float solutionZ;
-            if (j == -1)
-            {
-                cudaMemcpy(&solutionY, Y1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-                cudaMemcpy(&solutionZ, Z1 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-            }
-            else
-            {
-                cudaMemcpy(&solutionY, Y2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-                cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
-            }
-
-            float tm(sdkGetTimerValue(&timer) * 1e-3);
-            cout << tm << '\t' << cfg.name << '\t' << solutionY << '\t' << solutionZ << endl;
-
-            checkCudaErrors(cudaFree(X));
-            checkCudaErrors(cudaFree(Y1));
-            checkCudaErrors(cudaFree(Z1));
-            checkCudaErrors(cudaFree(Y2));
-            checkCudaErrors(cudaFree(Z2));
-        }
+        } while (work);
         checkCudaErrors(cudaDeviceReset());
     }
 
