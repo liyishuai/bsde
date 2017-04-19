@@ -229,18 +229,18 @@ int main(int argc, char *argv[])
     int GPU_N;
     checkCudaErrors(cudaGetDeviceCount(&GPU_N));
 
-    configs *cfgs = new configs[GPU_N];
-    config cfg;
-    for (int i = 0; cin >> cfg; i %= GPU_N)
-        cfgs[i++].push_back(cfg);
-
     StopWatchInterface *timer;
     sdkCreateTimer(&timer);
     sdkStartTimer(&timer);
 #pragma omp parallel num_threads(GPU_N)
     {
         checkCudaErrors(cudaSetDevice(omp_get_thread_num()));
-        for (const config &cfg : cfgs[omp_get_thread_num()])
+        bool work(false);
+        config cfg;
+#pragma omp critical
+        if (cin >> cfg)
+            work = true;
+        if (work)
         {
             const float dt(cfg.T / N);
             const float dh(dt);
@@ -318,7 +318,6 @@ int main(int argc, char *argv[])
     }
 
     sdkDeleteTimer(&timer);
-    delete[] cfgs;
 
     return 0;
 }
