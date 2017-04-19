@@ -1,4 +1,3 @@
-
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "helper_cuda.h"
@@ -10,7 +9,6 @@
 #include <cstring>
 #include <omp.h>
 #include <string>
-#include <vector>
 using namespace std;
 
 #define THREADS_PER_BLOCK 128
@@ -193,7 +191,7 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
 void currentSolution(const int &j, float *Y2, float *Z2, const float *Y1, const float *Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const int &M, const int &Ps, const float &r, const float &R, const float &sigma, const float &mu, const float &d, const float *randomMatrix)
 {
     const int ii(Ps * (N - j));
-    calculate << <M - ii - ii + 1, THREADS_PER_BLOCK >> > (ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh, r, R, sigma, mu, d);
+    calculate<<<M - ii - ii + 1, THREADS_PER_BLOCK>>>(ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh, r, R, sigma, mu, d);
     checkCudaErrors(cudaGetLastError());
 }
 
@@ -216,8 +214,6 @@ istream& operator >> (istream &in, config &c)
     return in >> c.name >> c.call_option >> c.S >> c.K >> c.T >> c.sigma >> c.r >> c.R >> c.mu >> c.d;
 }
 
-typedef vector<config> configs;
-
 int main(int argc, char *argv[])
 {
     int TIME_GRID;
@@ -235,6 +231,8 @@ int main(int argc, char *argv[])
 #pragma omp parallel num_threads(GPU_N)
     {
         checkCudaErrors(cudaSetDevice(omp_get_thread_num()));
+        float *randomMatrix;
+        checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
         bool work;
         do
         {
@@ -255,13 +253,13 @@ int main(int argc, char *argv[])
                 float *X;
                 checkCudaErrors(cudaMalloc((void**)&X, size));
 
-                makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
+                makeGrid<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(X, M, dh);
                 checkCudaErrors(cudaGetLastError());
 
                 float *Y1;
                 checkCudaErrors(cudaMalloc((void**)&Y1, size));
 
-                terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, cfg.S, cfg.T, cfg.K, cfg.call_option, cfg.sigma, cfg.mu);
+                terminalCondition<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(M, X, Y1, cfg.S, cfg.T, cfg.K, cfg.call_option, cfg.sigma, cfg.mu);
                 checkCudaErrors(cudaGetLastError());
 
                 float *Y2;
@@ -273,23 +271,20 @@ int main(int argc, char *argv[])
                 float *Z2;
                 checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
-                float *randomMatrix;
-                checkCudaErrors(cudaMalloc((void**)&randomMatrix, SIM_TIMES * sizeof(float)));
-
-                moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
+                moroInvCND<<<(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(randomMatrix, NE + 1, sqrtf(dt));
                 checkCudaErrors(cudaGetLastError());
 
                 int j;
                 for (j = N - 1; j >= 0; j -= 2)
                 {
-                    float th1 = 0.5;
-                    float th2 = 0.5;
+                    float th1(.5f);
+                    float th2(.5f);
                     if (j == N - 1)
-                        th1 = th2 = 1;
+                        th1 = th2 = 1f;
 
                     currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
 
-                    th1 = th2 = 0.5;
+                    th1 = th2 = .5f;
 
                     if (j > 0)
                         currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
@@ -308,7 +303,7 @@ int main(int argc, char *argv[])
                     cudaMemcpy(&solutionZ, Z2 + M / 2, sizeof(float), cudaMemcpyDeviceToHost);
                 }
 
-                float tm(sdkGetTimerValue(&timer) * 1e-3);
+                float tm(sdkGetTimerValue(&timer) * 1e-3f);
                 cout << tm << '\t' << cfg.name << '\t' << solutionY << '\t' << solutionZ << endl;
 
                 checkCudaErrors(cudaFree(X));

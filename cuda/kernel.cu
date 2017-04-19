@@ -27,7 +27,7 @@ __global__ void terminalCondition(int M, const float *X, float *YT, float S0, fl
     if (i <= M)
     {
         const float St(S0 * expf(sigma * X[i] + (mu - .5f * sigma * sigma) * T));
-        YT[i] = fmaxf(call_option ? St - K : K - St, 0.f);
+        YT[i] = fmaxf(call_option ? St - K : K - St, 0f);
     }
 }
 
@@ -60,13 +60,13 @@ __global__ void moroInvCND(float *randomMatrix, int num, float sqrtdt)
         if (fabsf(y) < .42f)
         {
             z = y * y;
-            z = y * (((a4 * z + a3) * z + a2) * z + a1) / ((((b4 * z + b3) * z + b2) * z + b1) * z + 1.f);
+            z = y * (((a4 * z + a3) * z + a2) * z + a1) / ((((b4 * z + b3) * z + b2) * z + b1) * z + 1f);
         }
         else
         {
-            z = y > 0 ? logf(-logf(1.f - P)) : logf(-logf(P));
+            z = y > 0f ? logf(-logf(1f - P)) : logf(-logf(P));
             z = c1 + z * (c2 + z * (c3 + z * (c4 + z * (c5 + z * (c6 + z * (c7 + z * (c8 + z * c9)))))));
-            if (y < 0)
+            if (y < 0f)
                 z = -z;
         }
         randomMatrix[i] = z * sqrtdt;
@@ -81,7 +81,7 @@ struct E
     float f;
     float fw;
 
-    __device__ E() : y(0), z(0), yw(0), f(0), fw(0) {}
+    __device__ E() : y(0f), z(0f), yw(0f), f(0f), fw(0f) {}
 
     __device__ E& operator +=(const E &e)
     {
@@ -96,7 +96,7 @@ struct E
 
 #define Ih(y1,y2,x1,x2,x) (y2 * (x - x1) + y1 * (x2 - x)) / (x2 - x1)
 
-#define function_f(y,z,mu,sigma,r,R,d) -(r * y + (mu - r + d) * z / sigma + (R - r) * fminf(y - z, 0.f))
+#define function_f(y,z,mu,sigma,r,R,d) -(r * y + (mu - r + d) * z / sigma + (R - r) * fminf(y - z, 0f))
 
 __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const float *Y1, const float *Z1, float th1, float th2, const float *randomMatrix, int NE, int Ps, float dt, float dh, float r, float R, float sigma, float mu, float d)
 {
@@ -184,15 +184,15 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
     {
         if (THREADS_PER_BLOCK >= 2)
             e[0] += e[1];
-        Z2[i] = (e[0].yw + dt * (1.f - th2) * e[0].fw - dt * (1.f - th2) * e[0].z) / (NE * dt * th2);
-        Y2[i] = ((e[0].y + dt * (1.f - th1) * e[0].f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * Z2[i]) / (1.f + dt * th1 * r);
+        Z2[i] = (e[0].yw + dt * (1f - th2) * e[0].fw - dt * (1f - th2) * e[0].z) / (NE * dt * th2);
+        Y2[i] = ((e[0].y + dt * (1f - th1) * e[0].f) / NE - dt * th1 * (1f / sigma) * (mu - r + d) * Z2[i]) / (1f + dt * th1 * r);
     }
 }
 
 void currentSolution(const int &j, float *Y2, float *Z2, const float *Y1, const float *Z1, const float *X, const float &th1, const float &th2, const float &dt, const float &dh, const int &NE, const int &N, const int &M, const int &Ps, const float &r, const float &R, const float &sigma, const float &mu, const float &d, const float *randomMatrix)
 {
     const int ii(Ps * (N - j));
-    calculate << <M - ii - ii + 1, THREADS_PER_BLOCK >> > (ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh, r, R, sigma, mu, d);
+    calculate<<<M - ii - ii + 1, THREADS_PER_BLOCK>>>(ii, X, Y2, Z2, Y1, Z1, th1, th2, randomMatrix, NE, Ps, dt, dh, r, R, sigma, mu, d);
     checkCudaErrors(cudaGetLastError());
 }
 
@@ -226,13 +226,13 @@ int main(int argc, char *argv[])
         checkCudaErrors(cudaSetDevice(0));
         checkCudaErrors(cudaMalloc((void**)&X, size));
 
-        makeGrid << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (X, M, dh);
+        makeGrid<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(X, M, dh);
         checkCudaErrors(cudaGetLastError());
 
         float *Y1;
         checkCudaErrors(cudaMalloc((void**)&Y1, size));
 
-        terminalCondition << <M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK >> > (M, X, Y1, S, T, K, call_option, sigma, mu);
+        terminalCondition<<<M / THREADS_PER_BLOCK + 1, THREADS_PER_BLOCK>>>(M, X, Y1, S, T, K, call_option, sigma, mu);
         checkCudaErrors(cudaGetLastError());
 
         float *Y2;
@@ -244,20 +244,20 @@ int main(int argc, char *argv[])
         float *Z2;
         checkCudaErrors(cudaMalloc((void**)&Z2, size));
 
-        moroInvCND << <(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (randomMatrix, NE + 1, sqrtf(dt));
+        moroInvCND<<<(NE + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(randomMatrix, NE + 1, sqrtf(dt));
         checkCudaErrors(cudaGetLastError());
 
         int j;
         for (j = N - 1; j >= 0; j -= 2)
         {
-            float th1 = 0.5;
-            float th2 = 0.5;
+            float th1(.5f);
+            float th2(.5f);
             if (j == N - 1)
-                th1 = th2 = 1;
+                th1 = th2 = 1f;
 
             currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
 
-            th1 = th2 = 0.5;
+            th1 = th2 = .5f;
 
             if (j > 0)
                 currentSolution(j - 1, Y1, Z1, Y2, Z2, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
