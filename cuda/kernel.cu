@@ -27,7 +27,7 @@ __global__ void terminalCondition(int M, const float *X, float *YT, float S0, fl
     if (i <= M)
     {
         const float St(S0 * expf(sigma * X[i] + (mu - .5f * sigma * sigma) * T));
-        YT[i] = fmaxf(call_option ? St - K : K - St, 0f);
+        YT[i] = fmaxf(call_option ? St - K : K - St, 0.f);
     }
 }
 
@@ -60,13 +60,13 @@ __global__ void moroInvCND(float *randomMatrix, int num, float sqrtdt)
         if (fabsf(y) < .42f)
         {
             z = y * y;
-            z = y * (((a4 * z + a3) * z + a2) * z + a1) / ((((b4 * z + b3) * z + b2) * z + b1) * z + 1f);
+            z = y * (((a4 * z + a3) * z + a2) * z + a1) / ((((b4 * z + b3) * z + b2) * z + b1) * z + 1.f);
         }
         else
         {
-            z = y > 0f ? logf(-logf(1f - P)) : logf(-logf(P));
+            z = y > 0.f ? logf(-logf(1.f - P)) : logf(-logf(P));
             z = c1 + z * (c2 + z * (c3 + z * (c4 + z * (c5 + z * (c6 + z * (c7 + z * (c8 + z * c9)))))));
-            if (y < 0f)
+            if (y < 0.f)
                 z = -z;
         }
         randomMatrix[i] = z * sqrtdt;
@@ -81,7 +81,7 @@ struct E
     float f;
     float fw;
 
-    __device__ E() : y(0f), z(0f), yw(0f), f(0f), fw(0f) {}
+    __device__ E() : y(0.f), z(0.f), yw(0.f), f(0.f), fw(0.f) {}
 
     __device__ E& operator +=(const E &e)
     {
@@ -96,7 +96,7 @@ struct E
 
 #define Ih(y1,y2,x1,x2,x) (y2 * (x - x1) + y1 * (x2 - x)) / (x2 - x1)
 
-#define function_f(y,z,mu,sigma,r,R,d) -(r * y + (mu - r + d) * z / sigma + (R - r) * fminf(y - z, 0f))
+#define function_f(y,z,mu,sigma,r,R,d) -(r * y + (mu - r + d) * z / sigma + (R - r) * fminf(y - z, 0.f))
 
 __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const float *Y1, const float *Z1, float th1, float th2, const float *randomMatrix, int NE, int Ps, float dt, float dh, float r, float R, float sigma, float mu, float d)
 {
@@ -184,8 +184,8 @@ __global__ void calculate(int ii, const float *X, float *Y2, float *Z2, const fl
     {
         if (THREADS_PER_BLOCK >= 2)
             e[0] += e[1];
-        Z2[i] = (e[0].yw + dt * (1f - th2) * e[0].fw - dt * (1f - th2) * e[0].z) / (NE * dt * th2);
-        Y2[i] = ((e[0].y + dt * (1f - th1) * e[0].f) / NE - dt * th1 * (1f / sigma) * (mu - r + d) * Z2[i]) / (1f + dt * th1 * r);
+        Z2[i] = (e[0].yw + dt * (1.f - th2) * e[0].fw - dt * (1.f - th2) * e[0].z) / (NE * dt * th2);
+        Y2[i] = ((e[0].y + dt * (1.f - th1) * e[0].f) / NE - dt * th1 * (1.f / sigma) * (mu - r + d) * Z2[i]) / (1.f + dt * th1 * r);
     }
 }
 
@@ -203,6 +203,7 @@ int main(int argc, char *argv[])
     cin >> SIM_TIMES >> TIME_GRID;
     const int N(TIME_GRID);
     const int NE(SIM_TIMES);
+    cout << N << '\t' << NE << endl;
 
     float *randomMatrix;
     checkCudaErrors(cudaMalloc((void**)&randomMatrix, NE * sizeof(float)));
@@ -253,7 +254,7 @@ int main(int argc, char *argv[])
             float th1(.5f);
             float th2(.5f);
             if (j == N - 1)
-                th1 = th2 = 1f;
+                th1 = th2 = 1.f;
 
             currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, r, R, sigma, mu, d, randomMatrix);
 

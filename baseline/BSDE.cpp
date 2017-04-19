@@ -14,6 +14,8 @@ int main(int argc, char* argv[])
     int TIME_GRID;
     cin >> SIM_TIMES >> TIME_GRID;
     const int N = TIME_GRID;
+    const int NE = SIM_TIMES;
+    cout << N << '\t' << NE << endl;
 
     StopWatchInterface *timer;
     sdkCreateTimer(&timer);
@@ -28,7 +30,6 @@ int main(int argc, char* argv[])
         const float c = 5.f * sqrtf(dt);
         const float Ps = c / dh + 1;
         const int M = N * Ps * 2;
-        const int NE = SIM_TIMES;
 
         int size = M + 1;
         float *X  = new float[size];

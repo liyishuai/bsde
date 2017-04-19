@@ -221,6 +221,7 @@ int main(int argc, char *argv[])
     cin >> SIM_TIMES >> TIME_GRID;
     const int N(TIME_GRID);
     const int NE(SIM_TIMES);
+    cout << N << '\t' << NE << endl;
 
     int GPU_N;
     checkCudaErrors(cudaGetDeviceCount(&GPU_N));
@@ -280,7 +281,7 @@ int main(int argc, char *argv[])
                     float th1(.5f);
                     float th2(.5f);
                     if (j == N - 1)
-                        th1 = th2 = 1f;
+                        th1 = th2 = 1.f;
 
                     currentSolution(j, Y2, Z2, Y1, Z1, X, th1, th2, dt, dh, NE, N, M, Ps, cfg.r, cfg.R, cfg.sigma, cfg.mu, cfg.d, randomMatrix);
 
